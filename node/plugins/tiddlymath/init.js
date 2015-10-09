@@ -34,18 +34,18 @@
 	 * @returns:
 	 *     The generated <script> DOM object.
 	 */
+	"use strict";
 	function prependScriptToHead(scriptContents, attributes, onLoadContents){
 		// Was r
-		var head = document.getElementsByTagName('head')[0]
-				|| document.documentElement;
+		var head = document.getElementsByTagName('head')[0] || document.documentElement;
 		// Was i
 		var newScript = document.createElement('script');
 
 		// Fill in the content of newScript with the code described by scriptContents
 		if(typeof scriptContents == 'function'){
-			head[window.opera?'innerHTML':'text'] = '(' + scriptContents.toString() + ')()';
+			newScript[window.opera?'innerHTML':'text'] = '(' + scriptContents.toString() + ')()';
 		} else if(typeof scriptContents == 'string'){
-			head.src = scriptContents;
+			newScript.src = scriptContents;
 		}
 
 		// If the attributes object is defined, add each of its properties to newScript
@@ -86,10 +86,6 @@
 
 
 	/**
-	 * We now prepend two scripts to the document head in order to load and configure MathJax. We note that (since we are prepending), the second script that follows will actually be loaded first, whence the first doesn't throw errors when making calls to MathJax objects.
-	 */
-
-	/**
 	 * Create a MathJax configuration script and insert it into the document header.
 	 *
 	 * At present custom macros can be provided to MathJax by editing the shadow tiddler
@@ -100,7 +96,8 @@
 	 * @TODO: Provide an easier way for specifying macros than this, possibly by programatically taking a separate configuration file and converting it to JSON.
 	 * @TODO: Allow more flexible customization of the MathJax configuration natively in TW5 through the plugin (e.g., the ability to specify different types of inline/displayed math delimiters), and have those configuration options be reflected here.
 	 */
-	prependScriptToHead(
+	console.log("About to initialize MathJax configuration script element");
+	prependScriptToHead(//
 		// scriptContents
 		function(){
 			MathJax.Hub.Config({
@@ -111,12 +108,17 @@
 			    },
                 "HTML-CSS": { linebreaks: { automatic: true } },
                 SVG: { linebreaks: { automatic: true } }
-			})
+			});
 		},
 		// attributes list for the script
 		{type:'text/x-mathjax-config'}
 		// No onload behavior specified
 	);
+
+
+	/**
+	 * We now prepend two scripts to the document head in order to load and configure MathJax. We note that (since we are prepending), the second script that follows will actually be loaded first, whence the first doesn't throw errors when making calls to MathJax objects.
+	 */
 
 	/**
 	 * Load the latest version of MathJax from the CDN then create a MutationObserver that monitors the story river of the current TiddlyWiki for changes and instructs MathJax to reprocess any new math.
@@ -124,7 +126,8 @@
 	 * @TODO: Have MathJax not typeset strings beginning with "$:/" (i.e., the names of shadow/system tiddlers).
 	 * @TODO: Get feedback on performance in large documents and consider ways to optimize how the mutation observer works (possibly using several independent ones for different types of content in the page)
 	 */
-	prependScriptToHead(
+	console.log("About to initialize MathJax.js script element");
+	prependScriptToHead(//
 		// scriptContents (from the MathJax CDN)
 		'http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
 		// No additional attributes needed
@@ -146,7 +149,7 @@
 						var riverObserver = new mutationObserver(
 								// The callback function for the MutationObserver
 								// Called with two arguments (e and t)
-								function(e,t){MathJax.Hub.Queue(['Typeset',MathJax.Hub])}
+								function(e,t){MathJax.Hub.Queue(['Typeset',MathJax.Hub]);}
 							);
 						// Set <code>n</code> equal to the story-river node in
 						// the current document.
@@ -159,4 +162,5 @@
 			);
 		}
 	);
-})()
+
+})();
