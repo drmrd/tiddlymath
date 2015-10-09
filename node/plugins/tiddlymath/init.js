@@ -1,123 +1,162 @@
-//
-// create a new application/javascript tiddler with name
-//   $:/plugins/kpe/mathjax/init.js
-// and a field:
-//    module-type  startup
-// with the following content
-//
+/**
+ * Changes in 0.1.0-alpha1
+ *     * Significant readability improvements, thanks to reading through the original script by kpe
+ * 	   * Changed a call to get elements with class named "story-river" to "tc-story-river", since I'm not sure how that was reverted to the older, out of date class name (unless I'm switching them around in my head).
+ */
 
-/*\
-title: $:/plugins/kpe/mathjax/init.js
-type: application/javascript
-module-type: startup
-
-Adds LaTeX support through MathJax
-
-\*/
 (function(){
 
-    /*jslint node: true, browser: true */
-    /*global $tw: false, Element: false */
-    "use strict";
+	/**
+	 * @function prependScriptToHead
+	 *
+	 * Flexibly prepends a <script> element at the beginning of the head of the current document. The output script
+	 * element is either of the form
+	 *
+	 *     <script onload=[n() or null] onreadystatechange=[n() or null] [Iterable Properties of t]>
+	 *         e.toString()
+	 *     </script>
+	 *
+	 * or
+	 *
+	 * 	   <script src="e" onload=[n() or null] onreadystatechange=[n() or null] [Iterable Properties of t] />
+	 *
+	 * depending on whether or not the parameter e is of function or string type and whether or not n is a function.
+	 *
+	 *
+	 * @param {text||function} scriptContents
+	 * 	   The contents of the script, provided as either code wrapped in an anonymous function or as the URL to a remote script source.
+	 * @param {object} attributes
+	 *     A dictionary (JSON object) of attributes to be assigned to the script (can be null)
+	 * @param {text||function} onLoadContents
+	 *     Code (provided either as an anonymous function or a URL to a remote javascript source) to be executed after the script has loaded.
+	 *
+	 *
+	 * @returns:
+	 *     The generated <script> DOM object.
+	 */
+	function prependScriptToHead(scriptContents, attributes, onLoadContents){
+		// Was r
+		var head = document.getElementsByTagName('head')[0]
+				|| document.documentElement;
+		// Was i
+		var newScript = document.createElement('script');
 
-    function appendScriptElement(fn, attr, done) {
-        var head = document.getElementsByTagName('head')[0] ||
-            document.documentElement;
-        var res = document.createElement('script');
-        if(typeof fn == 'function') {
-            res[window.opera?'innerHTML':'text'] = '('+fn.toString()+')()';
-        } else if(typeof fn == 'string'){
-            res.src = fn;
-        }
-        if(attr) {
-            for(var aname in attr) {
-                if(attr.hasOwnProperty(aname)) {
-                    res[aname] = attr[aname];
-                }
-            }
-        }
-        var loaded = false;
-        res.onload = res.onreadystatechange = function(){
-            if(!loaded &&
-               (!this.readyState
-                    || this.readyState == 'loaded'
-                    || this.readyState == 'complete')) {
-                loaded = true;
-                res.onload = res.onreadystatechange = null;
-                if(head && res.parentNode){
-                    head.removeChild(res);
-                }
-                if(typeof done == 'function') {
-                    done();
-                }
-            }
-        };
-        head.insertBefore(res, head.firstChild);
-        return res;
-    }
+		// Fill in the content of newScript with the code described by scriptContents
+		if(typeof scriptContents == 'function'){
+			head[window.opera?'innerHTML':'text'] = '(' + scriptContents.toString() + ')()';
+		} else if(typeof scriptContents == 'string'){
+			head.src = scriptContents;
+		}
+
+		// If the attributes object is defined, add each of its properties to newScript
+		if(attributes){
+			for(var a in attributes){
+				if(attributes.hasOwnProperty(a)){
+					newScript[a] = attributes[a];
+				}
+			}
+		}
+
+		// Was o
+		// Set a flag that scriptContents can access to indicate the behavior of the script after loading shouldn't be modified based on onLoadContents
+		var alreadyLoaded = false; // Used for some (compatibility test?) reason in the next conditional
+
+		// Let onLoadContents() determine the behavior of newScript after the latter has been loaded, unless said behavior was already configured (e.g., via the scriptContents or other scripts in the page)
+		newScript.onload = newScript.onreadystatechange = function(){
+			// Ah the joys of browser incompatibilities
+			if(!alreadyLoaded && (!this.readyState || this.readyState=='loaded' || this.readyState=='complete')){
+				alreadyLoaded = true;
+				newScript.onload = newScript.onreadystatechange = null;
+				// If head is defined and newScript has already been assigned a parent node (how?), remove newScript from head.
+				if(head && newScript.parentNode){
+					head.removeChild(newScript);
+				}
+				if(typeof onLoadContents == 'function'){
+					onLoadContents();
+				}
+			}
+		};
+
+		// Insert the new script as the first element of the document header.
+		head.insertBefore(newScript,head.firstChild);
+
+		// Return the newly-generated, newly-inserted script
+		return newScript;
+	}
 
 
-    // Export name and synchronous status
-    exports.name = "mathjax";
-    exports.platforms = ["browser"];
-    exports.after = ["startup"];
-    exports.synchronous = false;
+	/**
+	 * We now prepend two scripts to the document head in order to load and configure MathJax. We note that (since we are prepending), the second script that follows will actually be loaded first, whence the first doesn't throw errors when making calls to MathJax objects.
+	 */
 
-    exports.startup = function() {
-        appendScriptElement(function(){
-            MathJax.Hub.Config({
-                tex2jax: {
-                    inlineMath: [
-                        ['$','$'],
-                        ['\\\\(','\\\\)']
-                    ]
-                }
-            });
-        }, {type: 'text/x-mathjax-config'});
+	/**
+	 * Create a MathJax configuration script and insert it into the document header.
+	 *
+	 * At present custom macros can be provided to MathJax by editing the shadow tiddler
+	 *     $:/plugins/tiddlymath/CustomTeXCommands.json
+	 * providing a JSON key:value pair entry for each macro as described in MathJax's documentation.
+	 *
+	 * @TODO: Add the above shadow tiddler to the plugin as an empty JSON list with a comment containing an example.
+	 * @TODO: Provide an easier way for specifying macros than this, possibly by programatically taking a separate configuration file and converting it to JSON.
+	 * @TODO: Allow more flexible customization of the MathJax configuration natively in TW5 through the plugin (e.g., the ability to specify different types of inline/displayed math delimiters), and have those configuration options be reflected here.
+	 */
+	prependScriptToHead(
+		// scriptContents
+		function(){
+			MathJax.Hub.Config({
+				tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]},
+				TeX: {
+					Macros: JSON.parse($tw.wiki.getTiddlerText("$:/plugins/tiddlymath/CustomTeXCommands.json")),
+                    equationNumbers: { autoNumber: "AMS" }
+			    },
+                "HTML-CSS": { linebreaks: { automatic: true } },
+                SVG: { linebreaks: { automatic: true } }
+			})
+		},
+		// attributes list for the script
+		{type:'text/x-mathjax-config'}
+		// No onload behavior specified
+	);
 
-        appendScriptElement('http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML', null, function(){
-            appendScriptElement(function(){
-                var MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
-                if(!MutationObserver) {
-                    alert("MathJax plugin for TW5: Sorry, but current version of your browser is not supported!");
-                } else {
-                    var doMathJaxMagic = function(el,observe){
-                        console.log('doing mathjax');
-                        MathJax.Hub.Queue(["Typeset", MathJax.Hub].concat(el || []));
-                    };
-                    var editObserver = new MutationObserver(function(mrecs,obs){
-                        mrecs.forEach(function(mrec){
-                            [].forEach.call(mrec.addedNodes,function(node){
-                                var className = node.className || '';
-                                if(/tw-reveal/.test(className) && !node.hidden || node.nodeType == Node.TEXT_NODE) {
-                                    var preview = node.parentNode.querySelector('.tw-tiddler-preview-preview');
-                                    if(preview) {
-                                        doMathJaxMagic(preview);
-                                    }
-                                }
-                            });
-                        });
-                    });
-                    var d = document.getElementsByClassName("story-river")[0];
-                    var viewObserver = new MutationObserver(function(mrecs,obs){
-                        mrecs.forEach(function(mrec){
-                            [].forEach.call(mrec.addedNodes, function(node){
-                                var className = node.className || '';
-                                if(/tw-tiddler-view-frame/.test(className)) {
-                                    console.log('new view frame');
-                                    doMathJaxMagic(node);
-                                } else if(/tw-tiddler-edit-frame/.test(className)) {
-                                    console.log('new edit frame - start observing');
-                                    var el = node.querySelector('.tw-keyboard');
-                                    editObserver.observe(el,{subtree:false,childList:true});
-                                }
-                            });
-                        });
-                    });
-                    viewObserver.observe(d,{subtree:false,childList:true});
-                }
-            });
-        });
-    };
+	/**
+	 * Load the latest version of MathJax from the CDN then create a MutationObserver that monitors the story river of the current TiddlyWiki for changes and instructs MathJax to reprocess any new math.
+	 * @TODO: Fix the title duplication bug, in which the title of a draft of a tiddler that contains math will be duplicated every time a change is made in the draft.
+	 * @TODO: Have MathJax not typeset strings beginning with "$:/" (i.e., the names of shadow/system tiddlers).
+	 * @TODO: Get feedback on performance in large documents and consider ways to optimize how the mutation observer works (possibly using several independent ones for different types of content in the page)
+	 */
+	prependScriptToHead(
+		// scriptContents (from the MathJax CDN)
+		'http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+		// No additional attributes needed
+		null,
+		// Add a mutation observer to the story-river after loading the script
+		function(){
+			prependScriptToHead(
+				function(){
+					// Find the right MutationObserver constructor (depends
+					// on browser)
+					var mutationObserver = window.MutationObserver || window.WebKitMutationObserver;
+					if(!mutationObserver){
+						// If MutationObservers aren't supported by the browser, alert
+						// user and fail to load MathJax.
+						alert('MathJax plugin for TW5: Sorry, but current version of your browser is not supported!');
+						console.log("TiddlyMath Warning: Unable to load MathJax! Mutation observers are not supported in this browser!");
+					} else {
+						// Otherwise create a new MutationObserver instance, riverObserver, to monitor the story river in the TiddlyWiki
+						var riverObserver = new mutationObserver(
+								// The callback function for the MutationObserver
+								// Called with two arguments (e and t)
+								function(e,t){MathJax.Hub.Queue(['Typeset',MathJax.Hub])}
+							);
+						// Set <code>n</code> equal to the story-river node in
+						// the current document.
+						var river = document.getElementsByClassName('tc-story-river')[0];
 
-})();
+
+						riverObserver.observe(river,{subtree:true,attributes:true,childList:true});
+					}
+				}
+			);
+		}
+	);
+})()
