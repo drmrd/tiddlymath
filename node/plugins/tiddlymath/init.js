@@ -1,7 +1,8 @@
 /**
- * Changes in 0.1.0-alpha1
- *     * Significant readability improvements, thanks to reading through the original script by kpe
- * 	   * Changed a call to get elements with class named "story-river" to "tc-story-river", since I'm not sure how that was reverted to the older, out of date class name (unless I'm switching them around in my head).
+ * Changes in 0.2.0
+ *     - Removed the alpha modifier on the version number, since the plugin now seems to be in good working order.
+ *     - Performance improvements.
+ * 	   - Partially fixed draft title duplication bug (Issue #1). Now it is only duplicated once and then will remain static. It shouldn't take much to isolate and squash the bug now.
  */
 
 (function(){
@@ -148,7 +149,7 @@
 	 * @TODO: Get feedback on performance in large documents and consider ways to optimize how the mutation observer works (possibly using several independent ones for different types of content in the page)
 	 */
 	console.log("About to initialize MathJax.js script element");
-	prependScriptToHead(//
+	prependScriptToHead(
 		// scriptContents (from the MathJax CDN)
 		'http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
 		// No additional attributes needed
@@ -170,37 +171,45 @@
 						// Otherwise create a new MutationObserver instance, riverObserver, to monitor the story river in the TiddlyWiki
 						var riverObserver = new MutationObserver(
 							// The callback function for the MutationObserver
-							// Called with two arguments (mutations: a list of MutationRecords, thisObserver: a reference to riverObserver (I'm not 100% sure this is needed, but the MDN uses it...should see what happens if it's removed.)
 							function(mutations){
-								// @TODO: Take into account that the mutations might not be of the desired form (depending on their type property)
 								mutations.forEach(function(mutation) {
-										console.log("New Mutation");
-										console.log("Mutation type: " + mutation.type);
-										// Note that mutation.target is just the text inside the edited field, and so we immediately jump to looking at its parent node instead.
-										var mutatedTiddler = getAncestorTiddler(mutation.target.parentNode);
+						            var classes = mutation.target.classList;
+						            if(typeof classes !== "undefined"){
+						            	// TODO: Merge these into a more optimized set of if else if (or switch) statements once the logic as been fine-tuned.
 
-										if (mutatedTiddler !== null) {
-											if (tiddlerIsADraft(mutatedTiddler)) {
-												console.log(mutatedTiddler.toString());
-												// @TODO: Add support here for previewing newly-created tags
-												MathJax.Hub.Queue(['Typeset',MathJax.Hub,mutatedTiddler.getElementsByClassName("tc-tiddler-preview-preview")[0]]);
-											} else {
-												console.log(mutatedTiddler.toString());
-												MathJax.Hub.Queue(['Typeset',MathJax.Hub,mutatedTiddler]);
-											}
-										}
-									}
-								)
+						                // IF: Mutation is a tiddler being displayed/edited that wasn't previously...
+					                    if (classes.contains("tc-story-river") && mutation.addedNodes.length > 0){
+					                        for(var newTiddler in mutation.addedNodes){
+					                            MathJax.Hub.Queue(['Typeset',MathJax.Hub,newTiddler]);
+					                        }; // This could/should probably be optimized a bit
+					                    }
+					                    // IF a tag is created ...
+					                    // Currently not working. I think it's targeting the wrong MutationRecords
+					                    if (classes.contains("tc-edit-tags") && mutation.addedNodes.length > 0) { 
+					                        for(var newNode in mutation.addedNodes){
+					                        	if(typeof newNode.classList !== "undefined" && newNode.classList.contains("tc-tag-label")) {
+					                        		// No log entries are produced. I should check
+					                        		console.log("Now we're getting somewhere!");
+					                            	MathJax.Hub.Queue(['Typeset',MathJax.Hub,newNode]);
+					                        	}
+					                        };
+					                    } // This should probably be optimized a bit, too
+
+						                // IF: Something in the preview window is updated...
+						                if(typeof classes !== "undefined" && classes.contains('tc-tiddler-preview-preview')){
+						                    MathJax.Hub.Queue(['Typeset',MathJax.Hub,mutation.target]);
+						                }
+
+						            }
+						        });
 							}
 						);
-						// Set <code>n</code> equal to the story-river node in
+						
+						// Set <code>river</code> equal to the story-river node in
 						// the current document.
 						var river = document.getElementsByClassName('tc-story-river')[0];
-						console.log("MutationObserver created");
 
-						// @CHANGES: Removed childList, since I think it's unnecessary if using subtree
-						// @CHANGES: Removed attributes, since I don't think we care about attribute changes
-						riverObserver.observe(river,{characterData:true,subtree:true});
+						riverObserver.observe(river,{childList:true,subtree:true});
 					}
 				}
 			);
