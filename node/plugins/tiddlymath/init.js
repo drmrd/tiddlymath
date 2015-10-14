@@ -84,6 +84,27 @@
 		return newScript;
 	}
 
+	/**
+	 * getAncestorTiddler(DOMNode node)
+	 *
+	 *     Returns the tiddler containing a given node from the story river, if such a tiddler exists, and returns null otherwise
+	 */
+	function getAncestorTiddler(node){
+		var parent = node.parentNode;
+		while(!parent.isSameNode(document) && parent.className.indexOf("tc-tiddler-frame") < 0) {
+			parent = parent.parentNode;
+		}
+		return (!parent.isSameNode(document)) ? parent : null;
+	}
+
+	/**
+	 * tiddlerIsADraft
+	 *
+	 *     A simple check (based on the class names of the given tiddler) for whether or not it is a draft.
+	 */
+	function tiddlerIsADraft(tiddlerNode) {
+		return tiddlerNode.className.indexOf("tc-tiddler-edit-frame") >= 0;
+	}
 
 	/**
 	 * Create a MathJax configuration script and insert it into the document header.
@@ -133,34 +154,58 @@
 		// No additional attributes needed
 		null,
 		// Add a mutation observer to the story-river after loading the script
+		// @TODO: Since we will likely be switching to using multiple mutation observers, it would be better to have this function call helper functions based on the current configuration.
 		function(){
 			prependScriptToHead(
 				function(){
 					// Find the right MutationObserver constructor (depends
 					// on browser)
-					var mutationObserver = window.MutationObserver || window.WebKitMutationObserver;
-					if(!mutationObserver){
+					var MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
+					if(!MutationObserver){
 						// If MutationObservers aren't supported by the browser, alert
 						// user and fail to load MathJax.
 						alert('MathJax plugin for TW5: Sorry, but current version of your browser is not supported!');
 						console.log("TiddlyMath Warning: Unable to load MathJax! Mutation observers are not supported in this browser!");
 					} else {
 						// Otherwise create a new MutationObserver instance, riverObserver, to monitor the story river in the TiddlyWiki
-						var riverObserver = new mutationObserver(
-								// The callback function for the MutationObserver
-								// Called with two arguments (e and t)
-								function(e,t){MathJax.Hub.Queue(['Typeset',MathJax.Hub]);}
-							);
+						var riverObserver = new MutationObserver(
+							// The callback function for the MutationObserver
+							// Called with two arguments (mutations: a list of MutationRecords, thisObserver: a reference to riverObserver (I'm not 100% sure this is needed, but the MDN uses it...should see what happens if it's removed.)
+							function(mutations){
+								// @TODO: Take into account that the mutations might not be of the desired form (depending on their type property)
+								mutations.forEach(function(mutation) {
+										console.log("New Mutation");
+										console.log("Mutation type: " + mutation.type);
+										// Note that mutation.target is just the text inside the edited field, and so we immediately jump to looking at its parent node instead.
+										var mutatedTiddler = getAncestorTiddler(mutation.target.parentNode);
+
+										if (mutatedTiddler !== null) {
+											if (tiddlerIsADraft(mutatedTiddler)) {
+												console.log(mutatedTiddler.toString());
+												// @TODO: Add support here for previewing newly-created tags
+												MathJax.Hub.Queue(['Typeset',MathJax.Hub,mutatedTiddler.getElementsByClassName("tc-tiddler-preview-preview")[0]]);
+											} else {
+												console.log(mutatedTiddler.toString());
+												MathJax.Hub.Queue(['Typeset',MathJax.Hub,mutatedTiddler]);
+											}
+										}
+									}
+								)
+							}
+						);
 						// Set <code>n</code> equal to the story-river node in
 						// the current document.
 						var river = document.getElementsByClassName('tc-story-river')[0];
+						console.log("MutationObserver created");
 
-
-						riverObserver.observe(river,{subtree:true,attributes:true,childList:true});
+						// @CHANGES: Removed childList, since I think it's unnecessary if using subtree
+						// @CHANGES: Removed attributes, since I don't think we care about attribute changes
+						riverObserver.observe(river,{characterData:true,subtree:true});
 					}
 				}
 			);
 		}
 	);
+
 
 })();
