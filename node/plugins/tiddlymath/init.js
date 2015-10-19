@@ -1,8 +1,18 @@
+/*\
+title: $:/plugins/drmrd/tiddlymath/init.js
+type:  application/javascript
+module-type: startup
+
+Initializes and configures MathJax and then has it render tiddlers whenever they are displayed/changed.
+\*/
+
 /**
- * Changes in 0.2.0
- *     - Removed the alpha modifier on the version number, since the plugin now seems to be in good working order.
- *     - Performance improvements.
- * 	   - Partially fixed draft title duplication bug (Issue #1). Now it is only duplicated once and then will remain static. It shouldn't take much to isolate and squash the bug now.
+ * TiddlyMath - init.js
+ * Support Website: https://github.com/drmrd/tiddlymath
+ * 
+ * Changes in 0.2.1
+ *     - Fixed newly-created tags not being typeset in drafts
+ *	   - Removed unnecessary console.log calls
  */
 
 (function(){
@@ -118,7 +128,6 @@
 	 * @TODO: Provide an easier way for specifying macros than this, possibly by programatically taking a separate configuration file and converting it to JSON.
 	 * @TODO: Allow more flexible customization of the MathJax configuration natively in TW5 through the plugin (e.g., the ability to specify different types of inline/displayed math delimiters), and have those configuration options be reflected here.
 	 */
-	console.log("About to initialize MathJax configuration script element");
 	prependScriptToHead(//
 		// scriptContents
 		function(){
@@ -148,7 +157,6 @@
 	 * @TODO: Have MathJax not typeset strings beginning with "$:/" (i.e., the names of shadow/system tiddlers).
 	 * @TODO: Get feedback on performance in large documents and consider ways to optimize how the mutation observer works (possibly using several independent ones for different types of content in the page)
 	 */
-	console.log("About to initialize MathJax.js script element");
 	prependScriptToHead(
 		// scriptContents (from the MathJax CDN)
 		'http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
@@ -183,13 +191,10 @@
 					                            MathJax.Hub.Queue(['Typeset',MathJax.Hub,newTiddler]);
 					                        }; // This could/should probably be optimized a bit
 					                    }
-					                    // IF a tag is created ...
-					                    // Currently not working. I think it's targeting the wrong MutationRecords
-					                    if (classes.contains("tc-edit-tags") && mutation.addedNodes.length > 0) { 
-					                        for(var newNode in mutation.addedNodes){
+					                    if (classes.contains("tc-edit-tags") && mutation.addedNodes.length > 0) {
+					                        for(var i = 0; i < mutation.addedNodes.length; i++) {
+					                        	var newNode = mutation.addedNodes[i];
 					                        	if(typeof newNode.classList !== "undefined" && newNode.classList.contains("tc-tag-label")) {
-					                        		// No log entries are produced. I should check
-					                        		console.log("Now we're getting somewhere!");
 					                            	MathJax.Hub.Queue(['Typeset',MathJax.Hub,newNode]);
 					                        	}
 					                        };
